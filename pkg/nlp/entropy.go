@@ -1,27 +1,33 @@
 package nlp
 
 import (
+	"fmt"
 	"math"
 )
 
-func CalculateShannonEntropy(text string) float64 {
-	if len(text) == 0 {
-		return 0
-	}
+type EntropyFilter struct{}
 
-	frequency := make(map[rune]float64)
-	totalChars := 0
+func (f *EntropyFilter) Name() string { return "entropy" }
 
+func (f *EntropyFilter) Evaluate(text string, params map[string]interface{}) (bool, string) {
+	threshold := 2.0
+	if t, ok := params["entropy_threshold"].(float64); ok { threshold = t }
+
+	freq := make(map[rune]float64)
+	total := 0
 	for _, char := range text {
-		frequency[char]++
-		totalChars++
+		freq[char]++
+		total++
 	}
 
 	entropy := 0.0
-	for _, count := range frequency {
-		prob := count / float64(totalChars)
+	for _, count := range freq {
+		prob := count / float64(total)
 		entropy -= prob * math.Log2(prob)
 	}
 
-	return entropy
+	if entropy < threshold {
+		return false, fmt.Sprintf("entropy %f < %f", entropy, threshold)
+	}
+	return true, "ok"
 }
