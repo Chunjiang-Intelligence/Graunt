@@ -2,7 +2,7 @@ package external
 
 import (
 	"bytes"
-	"graunt/internal/model"
+	"data-flywheel/internal/model"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,43 +12,25 @@ import (
 
 type VLLMClient struct{}
 
-func NewVLLMClient() *VLLMClient {
-	return &VLLMClient{}
-}
+func NewVLLMClient() *VLLMClient { return &VLLMClient{} }
 
 func (c *VLLMClient) CallChatCompletion(baseURL string, req model.VLLMRequest) (*model.VLLMResponse, error) {
-	if baseURL == "" {
-		return nil, errors.New("vllm base url is empty")
-	}
-	url := fmt.Sprintf("%s/v1/chat/completions", baseURL)
-
-	bodyBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes))
-	if err != nil {
-		return nil, err
-	}
+	if baseURL == "" { return nil, errors.New("vllm base url is empty") }
+	
+	body, _ := json.Marshal(req)
+	httpReq, _ := http.NewRequest("POST", baseURL+"/v1/chat/completions", bytes.NewBuffer(body))
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
+	resp, err := (&http.Client{}).Do(httpReq)
+	if err != nil { return nil, err }
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("vllm api error: status %d, body: %s", resp.StatusCode, string(respBytes))
+		bts, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("api error: %s", string(bts))
 	}
 
 	var vllmResp model.VLLMResponse
-	if err := json.NewDecoder(resp.Body).Decode(&vllmResp); err != nil {
-		return nil, err
-	}
-
+	json.NewDecoder(resp.Body).Decode(&vllmResp)
 	return &vllmResp, nil
 }

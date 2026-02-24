@@ -1,113 +1,80 @@
 package service
 
 import (
-	"graunt/internal/external"
-	"graunt/internal/model"
-	"encoding/json"
+	"data-flywheel/internal/external"
+	"data-flywheel/internal/model"
 	"fmt"
 	"sync"
 )
 
 type PosttrainService struct {
-	mu            sync.RWMutex
-	ExpertData    []model.QAPair
-	ReferenceData []model.QAPair
-	VLLMClient    *external.VLLMClient
+	VLLMClient *external.VLLMClient
 }
 
 func NewPosttrainService() *PosttrainService {
-	return &PosttrainService{
-		ExpertData:    make([]model.QAPair, 0),
-		ReferenceData: make([]model.QAPair, 0),
-		VLLMClient:    external.NewVLLMClient(),
-	}
+	return &PosttrainService{VLLMClient: external.NewVLLMClient()}
 }
 
-func (s *PosttrainService) AddExpertData(qa model.QAPair) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.ExpertData = append(s.ExpertData, qa)
-}
-
-func (s *PosttrainService) AddReferenceData(qa model.QAPair) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.ReferenceData = append(s.ReferenceData, qa)
-}
-
-func (s *PosttrainService) GenerateSyntheticData(req model.PosttrainSyntheticRequest) ([]model.QAPair, error) {
-	s.mu.RLock()
-	expertSamples := s.ExpertData
-	refSamples := s.ReferenceData
-	s.mu.RUnlock()
-
-	systemPrompt := fmt.Sprintf("You are an expert in domain: %s. Generate %d new Question-Answer pairs in JSON format: [{\"question\":\"...\", \"answer\":\"...\"}]. Match the style and difficulty of the following examples.\n\n", req.Domain, req.Count)
-
-	for i, qa := range expertSamples {
-		if i > 2 {
-			break
-		}
-		systemPrompt += fmt.Sprintf("Expert Example - Q: %s A: %s\n", qa.Question, qa.Answer)
-	}
-	for i, qa := range refSamples {
-		if i > 2 {
-			break
-		}
-		systemPrompt += fmt.Sprintf("Reference Example - Q: %s A: %s\n", qa.Question, qa.Answer)
+func (s *PosttrainService) EvolInstruct(req model.EvolInstructRequest) (string, error) {
+	systemPrompt := ""
+	if req.EvolType == "in-depth" {
+		systemPrompt = "I want you act as a Prompt Rewriter. Make the given prompt more complex, adding constraints and multiple steps of reasoning required."
+	} else {
+		systemPrompt = "I want you act as a Prompt Rewriter. Create a completely new prompt that belongs to the same domain but tackles a different, broader topic."
 	}
 
 	vllmReq := model.VLLMRequest{
 		Model: req.Model,
 		Messages: []model.Message{
 			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: "Generate the JSON array now."},
+			{Role: "user", Content: req.Instruction},
 		},
-		MaxTokens:   2048,
-		Temperature: 0.8,
+		MaxTokens: 1024, Temperature: 0.7,
 	}
 
 	resp, err := s.VLLMClient.CallChatCompletion(req.VLLMBaseURL, vllmReq)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("no response from generation model")
-	}
-
-	content := resp.Choices[0].Message.Content
-	var synthetics []model.QAPair
-	err = json.Unmarshal([]byte(content), &synthetics)
-	if err != nil {
-		synthetics = []model.QAPair{{Question: "Raw Generated Output", Answer: content, Domain: req.Domain}}
-	}
-
-	return synthetics, nil
+	if err != nil || len(resp.Choices) == 0 { return "", fmt.Errorf("evol failed") }
+	return resp.Choices[0].Message.Content, nil
 }
 
-func (s *PosttrainService) Distill(req model.PretrainDistillRequest) (interface{}, error) {
-	// Post-train 的蒸馏逻辑与 Pre-train 基础设施复用，但在服务层分离以备后续扩展对齐算法(如KTO数据生成)
-	vllmReq := model.VLLMRequest{
-		Model: req.Model,
-		Messages: []model.Message{
-			{Role: "user", Content: req.Prompt},
-		},
-		MaxTokens:   1024,
-		Temperature: 0.5,
+func (s *PosttrainService) GenerateDPOPairs(req model.DPOConstructRequest) (*model.DPOPair, error) {
+	var wg sync.WaitGroup
+	var chosen, rejected string
+	var errChosen, errRejected error
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		r, err := s.VLLMClient.CallChatCompletion(req.VLLMBaseURL, model.VLLMRequest{
+			Model: req.Model,
+			Messages: []model.Message{
+				{Role: "system", Content: "You are a helpful, extremely accurate, and detailed AI assistant."},
+				{Role: "user", Content: req.Prompt},
+			},
+			MaxTokens: 1024, Temperature: 0.2,
+		})
+		if err == nil && len(r.Choices) > 0 { chosen = r.Choices[0].Message.Content } else { errChosen = err }
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		r, err := s.VLLMClient.CallChatCompletion(req.VLLMBaseURL, model.VLLMRequest{
+			Model: req.Model,
+			Messages: []model.Message{
+				{Role: "system", Content: "You are a lazy assistant. Give a very short, unhelpful, and generic answer."},
+				{Role: "user", Content: req.Prompt},
+			},
+			MaxTokens: 1024, Temperature: 1.2,
+		})
+		if err == nil && len(r.Choices) > 0 { rejected = r.Choices[0].Message.Content } else { errRejected = err }
+	}()
+
+	wg.Wait()
+
+	if errChosen != nil || errRejected != nil {
+		return nil, fmt.Errorf("failed to generate pairs")
 	}
-	if req.DistillType == "logits" {
-		vllmReq.Logprobs = true
-		vllmReq.TopLogprobs = 5
-	}
-	resp, err := s.VLLMClient.CallChatCompletion(req.VLLMBaseURL, vllmReq)
-	if err != nil {
-		return nil, err
-	}
-	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("no response")
-	}
-	if req.DistillType == "logits" {
-		return resp.Choices[0].Logprobs, nil
-	}
-	return resp.Choices[0].Message.Content, nil
+
+	return &model.DPOPair{Prompt: req.Prompt, Chosen: chosen, Rejected: rejected}, nil
 }
