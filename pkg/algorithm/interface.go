@@ -1,9 +1,25 @@
 package algorithm
 
-// FilterAlgorithm 定义了文本过滤算法的标准接口
+import (
+	"graunt/internal/external"
+)
+
 type FilterAlgorithm interface {
-	// Name 算法的唯一标识
 	Name() string
-	// Evaluate 评估文本，返回 true 表示保留，false 表示丢弃，并附带原因
-	Evaluate(text string, params map[string]interface{}) (keep bool, reason string)
+	Evaluate(text string, params map[string]interface{}) (bool, string)
+}
+
+type RewriteAlgorithm interface {
+	Name() string
+	Rewrite(text string, params map[string]interface{}, vllm *external.VLLMClient) (string, error)
+}
+
+type DistillAlgorithm interface {
+	Name() string
+	Distill(prompt string, params map[string]interface{}, vllm *external.VLLMClient) (interface{}, error)
+}
+
+type SyntheticAlgorithm interface {
+	Name() string
+	Synthesize(prompt string, params map[string]interface{}, vllm *external.VLLMClient) (interface{}, error)
 }

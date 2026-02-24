@@ -8,25 +8,67 @@ import (
 
 type Registry struct {
 	mu         sync.RWMutex
-	algorithms map[string]algorithm.FilterAlgorithm
+	filters    map[string]algorithm.FilterAlgorithm
+	rewrites   map[string]algorithm.RewriteAlgorithm
+	distills   map[string]algorithm.DistillAlgorithm
+	synthetics map[string]algorithm.SyntheticAlgorithm
 }
 
-var globalRegistry = &Registry{
-	algorithms: make(map[string]algorithm.FilterAlgorithm),
+var GlobalRegistry = &Registry{
+	filters:    make(map[string]algorithm.FilterAlgorithm),
+	rewrites:   make(map[string]algorithm.RewriteAlgorithm),
+	distills:   make(map[string]algorithm.DistillAlgorithm),
+	synthetics: make(map[string]algorithm.SyntheticAlgorithm),
 }
 
-func Register(algo algorithm.FilterAlgorithm) {
-	globalRegistry.mu.Lock()
-	defer globalRegistry.mu.Unlock()
-	globalRegistry.algorithms[algo.Name()] = algo
+func RegisterFilter(algo algorithm.FilterAlgorithm) {
+	GlobalRegistry.mu.Lock()
+	defer GlobalRegistry.mu.Unlock()
+	GlobalRegistry.filters[algo.Name()] = algo
 }
 
-func GetAlgorithm(name string) (algorithm.FilterAlgorithm, error) {
-	globalRegistry.mu.RLock()
-	defer globalRegistry.mu.RUnlock()
-	algo, exists := globalRegistry.algorithms[name]
-	if !exists {
-		return nil, fmt.Errorf("algorithm '%s' not found", name)
-	}
-	return algo, nil
+func RegisterRewrite(algo algorithm.RewriteAlgorithm) {
+	GlobalRegistry.mu.Lock()
+	defer GlobalRegistry.mu.Unlock()
+	GlobalRegistry.rewrites[algo.Name()] = algo
+}
+
+func RegisterDistill(algo algorithm.DistillAlgorithm) {
+	GlobalRegistry.mu.Lock()
+	defer GlobalRegistry.mu.Unlock()
+	GlobalRegistry.distills[algo.Name()] = algo
+}
+
+func RegisterSynthetic(algo algorithm.SyntheticAlgorithm) {
+	GlobalRegistry.mu.Lock()
+	defer GlobalRegistry.mu.Unlock()
+	GlobalRegistry.synthetics[algo.Name()] = algo
+}
+
+func GetFilter(name string) (algorithm.FilterAlgorithm, error) {
+	GlobalRegistry.mu.RLock()
+	defer GlobalRegistry.mu.RUnlock()
+	if algo, ok := GlobalRegistry.filters[name]; ok { return algo, nil }
+	return nil, fmt.Errorf("filter algorithm '%s' not found", name)
+}
+
+func GetRewrite(name string) (algorithm.RewriteAlgorithm, error) {
+	GlobalRegistry.mu.RLock()
+	defer GlobalRegistry.mu.RUnlock()
+	if algo, ok := GlobalRegistry.rewrites[name]; ok { return algo, nil }
+	return nil, fmt.Errorf("rewrite algorithm '%s' not found", name)
+}
+
+func GetDistill(name string) (algorithm.DistillAlgorithm, error) {
+	GlobalRegistry.mu.RLock()
+	defer GlobalRegistry.mu.RUnlock()
+	if algo, ok := GlobalRegistry.distills[name]; ok { return algo, nil }
+	return nil, fmt.Errorf("distill algorithm '%s' not found", name)
+}
+
+func GetSynthetic(name string) (algorithm.SyntheticAlgorithm, error) {
+	GlobalRegistry.mu.RLock()
+	defer GlobalRegistry.mu.RUnlock()
+	if algo, ok := GlobalRegistry.synthetics[name]; ok { return algo, nil }
+	return nil, fmt.Errorf("synthetic algorithm '%s' not found", name)
 }

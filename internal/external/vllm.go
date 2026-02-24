@@ -2,7 +2,7 @@ package external
 
 import (
 	"bytes"
-	"data-flywheel/internal/model"
+	"graunt/internal/model"
 	"encoding/json"
 	"errors"
 	"fmt"
