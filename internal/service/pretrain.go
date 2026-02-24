@@ -1,9 +1,9 @@
 package service
 
 import (
-	"data-flywheel/internal/external"
-	"data-flywheel/internal/model"
-	"data-flywheel/pkg/nlp"
+	"graunt/internal/external"
+	"graunt/internal/model"
+	"graunt/pkg/nlp"
 	"fmt"
 )
 

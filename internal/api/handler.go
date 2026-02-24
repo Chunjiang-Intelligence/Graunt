@@ -1,8 +1,8 @@
 package api
 
 import (
-	"data-flywheel/internal/model"
-	"data-flywheel/internal/service"
+	"graunt/internal/model"
+	"graunt/internal/service"
 	"encoding/json"
 	"net/http"
 )

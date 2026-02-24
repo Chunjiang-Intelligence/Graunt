@@ -1,8 +1,8 @@
 package service
 
 import (
-	"data-flywheel/internal/external"
-	"data-flywheel/internal/model"
+	"graunt/internal/external"
+	"graunt/internal/model"
 	"encoding/json"
 	"fmt"
 	"sync"

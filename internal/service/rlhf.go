@@ -1,7 +1,7 @@
 package service
 
 import (
-	"data-flywheel/pkg/naivebayes"
+	"graunt/pkg/naivebayes"
 )
 
 type RLHFService struct {
