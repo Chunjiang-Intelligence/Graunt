@@ -8,10 +8,8 @@ type RLHFService struct {
 	Classifier *naivebayes.BayesClassifier
 }
 
-func NewRLHFService() *RLHFService {
-	return &RLHFService{
-		Classifier: naivebayes.NewBayesClassifier(),
-	}
+var GlobalRLHF = &RLHFService{
+	Classifier: naivebayes.NewBayesClassifier(),
 }
 
 func (s *RLHFService) SubmitKnownEvaluation(userID string, userEval, actualCorrect bool) {

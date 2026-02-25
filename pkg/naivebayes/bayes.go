@@ -3,10 +3,10 @@ package naivebayes
 import "sync"
 
 type UserProfile struct {
-	TruePositive  int // 实际对，评价对
-	FalseNegative int // 实际对，评价错
-	TrueNegative  int // 实际错，评价错
-	FalsePositive int // 实际错，评价对
+	TruePositive  int
+	FalseNegative int
+	TrueNegative  int
+	FalsePositive int
 }
 
 type BayesClassifier struct {
@@ -15,9 +15,7 @@ type BayesClassifier struct {
 }
 
 func NewBayesClassifier() *BayesClassifier {
-	return &BayesClassifier{
-		Profiles: make(map[string]*UserProfile),
-	}
+	return &BayesClassifier{Profiles: make(map[string]*UserProfile)}
 }
 
 func (bc *BayesClassifier) UpdateProfile(userID string, userEval, actualCorrect bool) {
@@ -29,15 +27,10 @@ func (bc *BayesClassifier) UpdateProfile(userID string, userEval, actualCorrect 
 	}
 
 	p := bc.Profiles[userID]
-	if actualCorrect && userEval {
-		p.TruePositive++
-	} else if actualCorrect && !userEval {
-		p.FalseNegative++
-	} else if !actualCorrect && !userEval {
-		p.TrueNegative++
-	} else if !actualCorrect && userEval {
-		p.FalsePositive++
-	}
+	if actualCorrect && userEval { p.TruePositive++ }
+	if actualCorrect && !userEval { p.FalseNegative++ }
+	if !actualCorrect && !userEval { p.TrueNegative++ }
+	if !actualCorrect && userEval { p.FalsePositive++ }
 }
 
 func (bc *BayesClassifier) InferUnknownQuality(userID string, userEval bool) float64 {
@@ -45,9 +38,7 @@ func (bc *BayesClassifier) InferUnknownQuality(userID string, userEval bool) flo
 	defer bc.mu.RUnlock()
 
 	p, exists := bc.Profiles[userID]
-	if !exists {
-		return 0.5
-	}
+	if !exists { return 0.5 }
 
 	tp := float64(p.TruePositive) + 1.0
 	fn := float64(p.FalseNegative) + 1.0
@@ -58,20 +49,16 @@ func (bc *BayesClassifier) InferUnknownQuality(userID string, userEval bool) flo
 	priorFalse := 0.5
 
 	if userEval {
-		// P(Eval=T | Real=T) = TP / (TP + FN)
-		probEvalTrueGivenRealTrue := tp / (tp + fn)
-		// P(Eval=T | Real=F) = FP / (FP + TN)
-		probEvalTrueGivenRealFalse := fp / (fp + tn)
-
-		numerator := probEvalTrueGivenRealTrue * priorTrue
-		denominator := numerator + (probEvalTrueGivenRealFalse * priorFalse)
-		return numerator / denominator
+		probTrueGivenTrue := tp / (tp + fn)
+		probTrueGivenFalse := fp / (fp + tn)
+		num := probTrueGivenTrue * priorTrue
+		den := num + (probTrueGivenFalse * priorFalse)
+		return num / den
 	} else {
-		probEvalFalseGivenRealTrue := fn / (tp + fn)
-		probEvalFalseGivenRealFalse := tn / (fp + tn)
-
-		numerator := probEvalFalseGivenRealTrue * priorTrue
-		denominator := numerator + (probEvalFalseGivenRealFalse * priorFalse)
-		return numerator / denominator
+		probFalseGivenTrue := fn / (tp + fn)
+		probFalseGivenFalse := tn / (fp + tn)
+		num := probFalseGivenTrue * priorTrue
+		den := num + (probFalseGivenFalse * priorFalse)
+		return num / den
 	}
 }
