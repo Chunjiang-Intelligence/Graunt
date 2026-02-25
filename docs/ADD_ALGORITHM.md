@@ -17,7 +17,7 @@
 package rewrite
 
 import (
-	"data-flywheel/internal/external"
+	"graunt/internal/external"
 	"strings"
 )
 
